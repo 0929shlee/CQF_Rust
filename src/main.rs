@@ -1,6 +1,6 @@
-use std::cmp::max;
 use std::fs::File;
-use std::io::Read;
+use std::io::{Read, stdout, Write};
+use std::path::Path;
 use std::time::Instant;
 use crate::model::CqiMatrix;
 use crate::model::ConnectionMatrix;
@@ -9,6 +9,37 @@ use crate::model::comp_quality;
 mod model;
 
 fn main() {
+    let info = read_info();
+    match &info.7 as &str {
+        "BRUTE_FORCE" => run_brute_force(),
+        "CQI_SORTING" => run_cqi_sorting(),
+        "SHUFFLE_SPLIT" => run_shuffle_split(100),
+        _ => panic!("Algorithm Name error"),
+    }
+
+
+    /*
+    run_all_algorithms();
+     */
+
+    /*
+    test(100);
+     */
+}
+fn run_all_algorithms() {
+    run_cqi_sorting();
+
+    /*
+    //shuffle split
+    let shuffle_split_repeat: u64 = 100;
+    for repeat in 1..(shuffle_split_repeat + 1) {
+        run_shuffle_split(repeat);
+    }
+     */
+
+    //run_brute_force();
+}
+fn run_brute_force() {
     let info = read_info();
     let mut cqi_matrix = CqiMatrix::new(
         info.0,
@@ -20,30 +51,69 @@ fn main() {
         info.6,
     );
     cqi_matrix.generate();
-    cqi_matrix.write();
-
     let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
-
     let now = Instant::now();
-
-    match &info.7 as &str {
-        "BRUTE_FORCE" => connection_matrix.brute_force(),
-        "CQI_SORTING" => connection_matrix.cqi_sorting(),
-        _ => panic!("Algorithm Name error"),
-    }
-
-    connection_matrix.write();
-
-    println!("time spending: {}", now.elapsed().as_millis());
+    connection_matrix.brute_force();
+    let rt = now.elapsed().as_millis();
     let cq = comp_quality::calculate(&connection_matrix);
-    println!("\n------------------------------");
-    println!("CoMP Quality: {}", cq);
-    println!("------------------------------");
-    comp_quality::write(cq);
+    connection_matrix.write();
+    write_results("result_brute_force.txt", cq, rt);
+}
+fn run_cqi_sorting() {
+    let info = read_info();
+    let mut cqi_matrix = CqiMatrix::new(
+        info.0,
+        info.1,
+        info.2,
+        info.3,
+        info.4,
+        info.5,
+        info.6,
+    );
+    println!("{}", info.3);
+    cqi_matrix.generate();
+    let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
+    let now = Instant::now();
+    connection_matrix.cqi_sorting();
+    let rt = now.elapsed().as_millis();
+    let cq = comp_quality::calculate(&connection_matrix);
+    connection_matrix.write();
+    write_results("result_cqi_sorting.txt", cq, rt);
+}
+fn run_shuffle_split(repeat: u64) {
+    let info = read_info();
+    let mut cqi_matrix = CqiMatrix::new(
+        info.0,
+        info.1,
+        info.2,
+        info.3,
+        info.4,
+        info.5,
+        info.6,
+    );
+    cqi_matrix.generate();
+    let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
+    let now = Instant::now();
+    connection_matrix.shuffle_split(repeat);
+    let rt = now.elapsed().as_millis();
+    let cq = comp_quality::calculate(&connection_matrix);
+    connection_matrix.write();
+    let result_file_path = format!("result_shuffle_split_{}.txt", repeat);
+    write_results(result_file_path.as_str(), cq, rt);
+}
 
-    /*
-    test(100);
-     */
+fn write_results(file_path: &str, comp_quality: f64, running_time: u128) {
+    let path = Path::new(file_path);
+    let mut file = match File::create(&path) {
+        Err(e) => panic!("File create error: {}", e),
+        Ok(file) => file,
+    };
+
+    let s = format!("COMP_QUALITY: {}\nRUNNING_TIME: {}\n", comp_quality, running_time);
+    match file.write_all(s.as_bytes()) {
+        Err(e) => panic!("file write all error: {}", e),
+        Ok(_) => {},
+    }
 }
 
 fn read_info() -> (usize, usize, usize, usize, f64, f64, usize, String) {
@@ -98,7 +168,6 @@ fn read_info() -> (usize, usize, usize, usize, f64, f64, usize, String) {
         .split_whitespace()
         .collect::<Vec<&str>>()[1];
 
-
     (n_gnb,
      n_ue,
      n_time,
@@ -133,6 +202,7 @@ fn test(n_test: usize) {
         match &info.7 as &str {
             "BRUTE_FORCE" => connection_matrix.brute_force(),
             "CQI_SORTING" => connection_matrix.cqi_sorting(),
+            "SHUFFLE_SPLIT" => connection_matrix.shuffle_split(100),
             _ => panic!("Algorithm Name error"),
         }
 
