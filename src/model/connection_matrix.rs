@@ -6,6 +6,7 @@ use crate::model::{Matrix, CqiMatrix, comp_quality};
 pub struct ConnectionMatrix {
     pub cqi_matrix: CqiMatrix,
     pub matrix: Matrix,
+    pub algorithm_name: String,
 }
 
 impl ConnectionMatrix {
@@ -24,6 +25,7 @@ impl ConnectionMatrix {
                 String::from("connection_matrix.txt"),
                 max_gnb_connection,
             ),
+            algorithm_name: String::from(""),
         }
     }
     pub fn write(&self) {
@@ -31,25 +33,49 @@ impl ConnectionMatrix {
     }
 
     pub fn brute_force(&mut self) {
-        self.matrix.file_path = String::from("connection_matrix_brute_force.txt");
+        self.algorithm_name = String::from("brute_force");
+        self.matrix.file_path = format!("connection_matrix_{}_{}.txt",
+                                        self.algorithm_name,
+                                        self.cqi_matrix.matrix.max_gnb_connection);
+        println!("Brute Force Algorithm start");
         for t in 0..self.matrix.n_time {
-            println!("Brute Force Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
             self._bf(t);
+            println!("Brute Force Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
         }
         println!();
     }
 
     pub fn cqi_sorting(&mut self) {
-        self.matrix.file_path = String::from("connection_matrix_cqi_sorting.txt");
-        let mut coord_cqi_table = vec![vec![0 as u8; 4]; self.matrix.n_gnb * self.matrix.n_ue];
-
+        self.algorithm_name = String::from("cqi_sorting");
+        self.matrix.file_path = format!("connection_matrix_{}_{}.txt",
+                                        self.algorithm_name,
+                                        self.cqi_matrix.matrix.max_gnb_connection);
+        println!("CQI Sorting Algorithm start");
         for t in 0..self.matrix.n_time {
-            println!("CQI Sorting Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
-            self._cs_get_coord_cqi_table(t, &mut coord_cqi_table);
-            self._cs_connect_good_connection_candidates(t, &mut coord_cqi_table);
+            let mut coord_cqi_vector: Vec<(usize, usize, u8, f64)> = Vec::new();
+            self._cs_get_coord_cqi_table(t, &mut coord_cqi_vector);
+            self._cs_connect_good_connection_candidates(t, &mut coord_cqi_vector);
             self._cs_swap_connection(t);
+            println!("CQI Sorting Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
         }
         println!();
+    }
+
+    pub fn expectation_sorting(&mut self) {
+        self.algorithm_name = String::from("expectation_sorting");
+        self.matrix.file_path = format!("connection_matrix_{}_{}.txt",
+                                        self.algorithm_name,
+                                        self.cqi_matrix.matrix.max_gnb_connection);
+        println!("Expectation Sorting Algorithm start");
+        for t in 0..self.matrix.n_time {
+            let mut coord_cqi_vector: Vec<(usize, usize, u8, f64)> = Vec::new();
+            self._es_get_coord_cqi_table(t, &mut coord_cqi_vector);
+            self._es_connect_good_connection_candidates(t, &mut coord_cqi_vector);
+            self._es_swap_connection(t);
+            println!("Expectation Sorting Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
+        }
+        println!();
+
     }
 
     pub fn shuffle_split(&mut self, repeat: u64) {
@@ -59,6 +85,148 @@ impl ConnectionMatrix {
             self._ss(t, repeat);
         }
         println!();
+    }
+}
+
+impl ConnectionMatrix {
+    //Expectation Sorting
+    fn _es_get_coord_cqi_table(&self, time_idx: usize, coord_cqi_vector: &mut Vec<(usize, usize, u8, f64)>) {
+        let mut sum_cqi_of_ue = vec![0 as u64; self.matrix.n_ue];
+        for (u, s) in sum_cqi_of_ue.iter_mut().enumerate() {
+            for g in 0..self.matrix.n_gnb {
+                *s += (self.cqi_matrix.matrix.matrix[g][u][time_idx] as u64);
+            }
+        }
+        let sum_cqi_of_ue = sum_cqi_of_ue;
+
+        for g in 0..self.matrix.n_gnb {
+            for u in 0..self.matrix.n_ue {
+                coord_cqi_vector.push((g,
+                                       u,
+                                       self.cqi_matrix.matrix.matrix[g][u][time_idx],
+                                       self._es_get_expectation(g, u, time_idx, &sum_cqi_of_ue)));
+            }
+        }
+    }
+    fn _es_get_expectation(
+        &self,
+        gnb_idx: usize,
+        ue_idx: usize,
+        time_idx: usize,
+        sum_cqi_of_ue: &Vec<u64>
+    ) -> f64 {
+        comp_quality::_reward(
+            &self.cqi_matrix,
+            gnb_idx,
+            ue_idx,
+            time_idx
+        )
+            * self.matrix.n_gnb as f64
+            - sum_cqi_of_ue[ue_idx] as f64
+    }
+    fn _es_connect_good_connection_candidates(
+        &mut self,
+        time_idx: usize,
+        coord_cqi_vector: &mut Vec<(usize, usize, u8, f64)>) {
+
+        let mut gnb_connection_counts = vec![0 as usize; self.matrix.n_gnb];
+        let mut ue_connection_counts = vec![0 as usize; self.matrix.n_ue];
+
+        coord_cqi_vector.sort_by(
+            |t0, t1|
+                t1.3.partial_cmp(&t0.3).unwrap()
+        );
+
+        for v in coord_cqi_vector {
+            let g = v.0;
+            let u = v.1;
+            let cqi = v.2;
+
+            //check if it is valid
+            if cqi == 0 {
+                break;
+            }
+            if gnb_connection_counts[g] >= self.matrix.max_gnb_connection {
+                continue;
+            }
+            if ue_connection_counts[u] >= 1 {
+                continue;
+            }
+
+            //valid
+            self.matrix.matrix[g][u][time_idx] = 1;
+            gnb_connection_counts[g] += 1;
+            ue_connection_counts[u] += 1;
+        }
+    }
+    fn _es_swap_connection(&mut self, time_idx: usize) {
+        let mut gnb_connection_counts = vec![0 as usize; self.matrix.n_gnb];
+        let mut ue_connection_counts = vec![0 as usize; self.matrix.n_ue];
+        for g in 0..self.matrix.n_gnb {
+            for u in 0..self.matrix.n_ue {
+                if self.matrix.matrix[g][u][time_idx] == 1 {
+                    gnb_connection_counts[g] += 1;
+                    ue_connection_counts[u] += 1;
+                }
+            }
+        }
+
+        let mut sum_cqi_of_ue = vec![0 as u64; self.matrix.n_ue];
+        for (u, s) in sum_cqi_of_ue.iter_mut().enumerate() {
+            for g in 0..self.matrix.n_gnb {
+                *s += (self.cqi_matrix.matrix.matrix[g][u][time_idx] as u64);
+            }
+        }
+
+        for u in 0..self.matrix.n_ue {
+            if ue_connection_counts[u] == 1 {
+                continue;
+            }
+            let mut g: usize = 0;
+            for c in gnb_connection_counts.iter() {
+                if *c < self.matrix.max_gnb_connection {
+                    break;
+                }
+                g += 1;
+            }
+            assert_eq!(self.matrix.matrix[g][u][time_idx], 0);
+
+            if self.cqi_matrix.matrix.matrix[g][u][time_idx] != 0 {
+                self.matrix.matrix[g][u][time_idx] = 1;
+                continue;
+            }
+
+            let mut coord_cqi_vector: Vec<(usize, usize, f64)> = Vec::new(); //gnb_idx_to_go, ue_idx_to_switch, reward_changes
+            for tmp_g in 0..self.matrix.n_gnb {
+                if tmp_g == g {
+                    continue;
+                }
+                for tmp_u in 0..self.matrix.n_ue {
+                    if self.matrix.matrix[tmp_g][tmp_u][time_idx] == 1 {
+                        coord_cqi_vector.push((
+                            tmp_g,
+                            tmp_u,
+                            self._es_get_expectation(tmp_g, u, time_idx, &sum_cqi_of_ue) +
+                                self._es_get_expectation(g, tmp_u, time_idx, &sum_cqi_of_ue) -
+                                self._es_get_expectation(tmp_g, tmp_u, time_idx, &sum_cqi_of_ue)
+                        ))
+                    }
+                }
+            }
+            coord_cqi_vector.sort_by(
+                |t0, t1|
+                    t1.2.partial_cmp(&t0.2).unwrap()
+            );
+
+            let res_g = coord_cqi_vector.first().unwrap().0;
+            let res_u = coord_cqi_vector.first().unwrap().1;
+            self.matrix.matrix[res_g][u][time_idx] = 1;
+            self.matrix.matrix[res_g][res_u][time_idx] = 0;
+            self.matrix.matrix[g][res_u][time_idx] = 1;
+
+            gnb_connection_counts[g] += 1;
+            ue_connection_counts[u] += 1;
+        }
     }
 }
 
@@ -123,7 +291,7 @@ impl ConnectionMatrix {
     fn _ss_get_comp_quality_of_gnb_vector(&self, gnb_vector: &Vec<usize>, time_idx: usize) -> f64 {
         let mut res = 0.0;
         for (u, g) in gnb_vector[..self.matrix.n_ue].iter().enumerate() {
-            res += comp_quality::reward(&self.cqi_matrix, *g, u, time_idx);
+            res += comp_quality::get_sum_of_comp_quality(&self.cqi_matrix, *g, u, time_idx);
         }
 
         res
@@ -176,7 +344,7 @@ impl ConnectionMatrix {
     fn _bf_get_comp_quality_of_gnb_vector(&self, gnb_vector: &Vec<usize>, time_idx: usize) -> f64 {
         let mut res = 0.0;
         for (u, g) in gnb_vector.iter().enumerate() {
-            res += comp_quality::reward(&self.cqi_matrix, *g, u, time_idx);
+            res += comp_quality::get_sum_of_comp_quality(&self.cqi_matrix, *g, u, time_idx);
         }
 
         res
@@ -213,56 +381,53 @@ impl ConnectionMatrix {
 }
 impl ConnectionMatrix {
     //CQI Sorting
-    fn _cs_get_coord_cqi_table(&self, time_idx: usize, coord_cqi_table: &mut Vec<Vec<u8>>) {
-        let mut cnt = 0;
-
+    fn _cs_get_coord_cqi_table(&self, time_idx: usize, coord_cqi_vector: &mut Vec<(usize, usize, u8, f64)>) {
         for g in 0..self.matrix.n_gnb {
             for u in 0..self.matrix.n_ue {
-                coord_cqi_table[cnt][0] = g as u8;
-                coord_cqi_table[cnt][1] = u as u8;
-                coord_cqi_table[cnt][2] = self.cqi_matrix.matrix.matrix[g][u][time_idx];
-                coord_cqi_table[cnt][3] = comp_quality::reward(
-                    &self.cqi_matrix,
-                    g,
-                    u,
-                    time_idx) as u8;
-                cnt += 1;
+                coord_cqi_vector.push((g,
+                                      u,
+                                      self.cqi_matrix.matrix.matrix[g][u][time_idx],
+                                      comp_quality::get_sum_of_comp_quality(
+                                          &self.cqi_matrix,
+                                          g,
+                                          u,
+                                          time_idx)));
             }
         }
     }
     fn _cs_connect_good_connection_candidates(
         &mut self,
         time_idx: usize,
-        coord_cqi_table: &mut Vec<Vec<u8>>) {
+        coord_cqi_vector: &mut Vec<(usize, usize, u8, f64)>) {
 
         let mut gnb_connection_counts = vec![0 as usize; self.matrix.n_gnb];
         let mut ue_connection_counts = vec![0 as usize; self.matrix.n_ue];
 
-        coord_cqi_table.sort_by(
-            |v0, v1|
-                v1.last().unwrap().cmp(v0.last().unwrap())
+        coord_cqi_vector.sort_by(
+            |t0, t1|
+                t1.3.partial_cmp(&t0.3).unwrap()
         );
 
-        for v in coord_cqi_table {
-            let g = v[0];
-            let u = v[1];
-            let cqi = v[2];
+        for v in coord_cqi_vector {
+            let g = v.0;
+            let u = v.1;
+            let cqi = v.2;
 
             //check if it is valid
             if cqi == 0 {
                 break;
             }
-            if gnb_connection_counts[g as usize] >= self.matrix.max_gnb_connection {
+            if gnb_connection_counts[g] >= self.matrix.max_gnb_connection {
                 continue;
             }
-            if ue_connection_counts[u as usize] >= 1 {
+            if ue_connection_counts[u] >= 1 {
                 continue;
             }
 
             //valid
-            self.matrix.matrix[g as usize][u as usize][time_idx] = 1;
-            gnb_connection_counts[g as usize] += 1;
-            ue_connection_counts[u as usize] += 1;
+            self.matrix.matrix[g][u][time_idx] = 1;
+            gnb_connection_counts[g] += 1;
+            ue_connection_counts[u] += 1;
         }
     }
     fn _cs_swap_connection(&mut self, time_idx: usize) {
@@ -305,9 +470,9 @@ impl ConnectionMatrix {
                         coord_cqi_matrix.push((
                             tmp_g,
                             tmp_u,
-                            comp_quality::reward(&self.cqi_matrix, tmp_g, u, time_idx) +
-                            comp_quality::reward(&self.cqi_matrix, g, tmp_u, time_idx) -
-                            comp_quality::reward(&self.cqi_matrix, tmp_g, tmp_u, time_idx)
+                            comp_quality::get_sum_of_comp_quality(&self.cqi_matrix, tmp_g, u, time_idx) +
+                            comp_quality::get_sum_of_comp_quality(&self.cqi_matrix, g, tmp_u, time_idx) -
+                            comp_quality::get_sum_of_comp_quality(&self.cqi_matrix, tmp_g, tmp_u, time_idx)
                         ))
                     }
                 }

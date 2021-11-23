@@ -10,37 +10,68 @@ mod model;
 
 fn main() {
     let info = read_info();
+    /*
     match &info.7 as &str {
-        "BRUTE_FORCE" => run_brute_force(),
-        "CQI_SORTING" => run_cqi_sorting(),
-        "SHUFFLE_SPLIT" => run_shuffle_split(100),
+        "BF" => run_brute_force(&info),
+        "CS" => run_cqi_sorting(&info),
+        "ES" => run_expectation_sorting(&info),
+        "SS" => run_shuffle_split(&info, 100),
         _ => panic!("Algorithm Name error"),
     }
 
+     */
+
+    for i in 2..11 {
+        let info = (info.0, info.1, info.2, i * 10 as usize, info.4, info.5, info.6, String::from(&info.7));
+        run_cqi_sorting(&info);
+    }
+
+
 
     /*
-    run_all_algorithms();
+    run_all_algorithms(&info);
      */
 
     /*
     test(100);
      */
 }
-fn run_all_algorithms() {
-    run_cqi_sorting();
+fn run_all_algorithms(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
+    run_cqi_sorting(info);
+
+    run_expectation_sorting(info);
 
     /*
     //shuffle split
     let shuffle_split_repeat: u64 = 100;
     for repeat in 1..(shuffle_split_repeat + 1) {
-        run_shuffle_split(repeat);
+        run_shuffle_split(info, repeat);
     }
      */
 
-    //run_brute_force();
+    //run_brute_force(info);
 }
-fn run_brute_force() {
-    let info = read_info();
+fn run_expectation_sorting(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
+    let mut cqi_matrix = CqiMatrix::new(
+        info.0,
+        info.1,
+        info.2,
+        info.3,
+        info.4,
+        info.5,
+        info.6,
+    );
+    cqi_matrix.generate();
+    let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
+    let now = Instant::now();
+    connection_matrix.expectation_sorting();
+    let rt = now.elapsed().as_millis();
+    let cq = comp_quality::calculate(&connection_matrix);
+    connection_matrix.write();
+    write_results(format!("result_{}_{}.txt", connection_matrix.algorithm_name, info.3).as_str(),
+                  cq, rt);
+}
+fn run_brute_force(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
     let mut cqi_matrix = CqiMatrix::new(
         info.0,
         info.1,
@@ -57,10 +88,10 @@ fn run_brute_force() {
     let rt = now.elapsed().as_millis();
     let cq = comp_quality::calculate(&connection_matrix);
     connection_matrix.write();
-    write_results("result_brute_force.txt", cq, rt);
+    write_results(format!("result_{}_{}.txt", connection_matrix.algorithm_name, info.3).as_str(),
+                  cq, rt);
 }
-fn run_cqi_sorting() {
-    let info = read_info();
+fn run_cqi_sorting(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
     let mut cqi_matrix = CqiMatrix::new(
         info.0,
         info.1,
@@ -78,10 +109,10 @@ fn run_cqi_sorting() {
     let rt = now.elapsed().as_millis();
     let cq = comp_quality::calculate(&connection_matrix);
     connection_matrix.write();
-    write_results("result_cqi_sorting.txt", cq, rt);
+    write_results(format!("result_{}_{}.txt", connection_matrix.algorithm_name, info.3).as_str(),
+                  cq, rt);
 }
-fn run_shuffle_split(repeat: u64) {
-    let info = read_info();
+fn run_shuffle_split(info: &(usize, usize, usize, usize, f64, f64, usize, String), repeat: u64) {
     let mut cqi_matrix = CqiMatrix::new(
         info.0,
         info.1,
@@ -98,8 +129,11 @@ fn run_shuffle_split(repeat: u64) {
     let rt = now.elapsed().as_millis();
     let cq = comp_quality::calculate(&connection_matrix);
     connection_matrix.write();
-    let result_file_path = format!("result_shuffle_split_{}.txt", repeat);
-    write_results(result_file_path.as_str(), cq, rt);
+    write_results(format!("result_{}_{}_{}.txt",
+                          connection_matrix.algorithm_name,
+                          repeat,
+                          info.3).as_str(),
+                  cq, rt);
 }
 
 fn write_results(file_path: &str, comp_quality: f64, running_time: u128) {

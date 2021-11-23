@@ -7,7 +7,7 @@ pub fn calculate(connection_matrix: &ConnectionMatrix) -> f64 {
         for g in 0..connection_matrix.matrix.n_gnb {
             for u in 0..connection_matrix.matrix.n_ue {
                 if connection_matrix.matrix.matrix[g][u][t] == 1 {
-                    comp_quality_of_time += reward(
+                    comp_quality_of_time += get_sum_of_comp_quality(
                         &connection_matrix.cqi_matrix,
                         g,
                         u,
@@ -23,19 +23,25 @@ pub fn calculate(connection_matrix: &ConnectionMatrix) -> f64 {
 
     res
 }
-pub fn reward(
+pub fn get_sum_of_comp_quality(
     cqi_matrix: &CqiMatrix,
     gnb_idx: usize,
     ue_idx: usize,
     time_idx: usize
 ) -> f64 {
 
-    _get_reward_of_cqi(cqi_matrix.matrix.max_cqi) +
+    _max_reward(cqi_matrix) +
         _reward(cqi_matrix, gnb_idx, ue_idx, time_idx) -
         _penalty(cqi_matrix, gnb_idx, ue_idx, time_idx)
 }
 
-fn _reward(
+pub fn _max_reward(
+    cqi_matrix: &CqiMatrix,
+) -> f64 {
+
+    _get_reward_of_cqi(cqi_matrix.matrix.max_cqi)
+}
+pub fn _reward(
     cqi_matrix: &CqiMatrix,
     gnb_idx: usize,
     ue_idx: usize,
