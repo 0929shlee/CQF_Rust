@@ -18,39 +18,27 @@ fn main() {
         "SS" => run_shuffle_split(&info, 100),
         _ => panic!("Algorithm Name error"),
     }
-
      */
 
     for i in 2..11 {
+        let info = (info.0, info.1, info.2, i as usize, info.4, info.5, info.6, String::from(&info.7));
+        run_cqi_sorting(&info);
+        run_expectation_sorting(&info);
+        run_brute_force(&info);
+
+        /*
         let info = (info.0, info.1, info.2, i * 10 as usize, info.4, info.5, info.6, String::from(&info.7));
         run_cqi_sorting(&info);
+        run_expectation_sorting(&info);
+         */
     }
-
-
-
-    /*
-    run_all_algorithms(&info);
-     */
 
     /*
     test(100);
      */
 }
-fn run_all_algorithms(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
-    run_cqi_sorting(info);
 
-    run_expectation_sorting(info);
 
-    /*
-    //shuffle split
-    let shuffle_split_repeat: u64 = 100;
-    for repeat in 1..(shuffle_split_repeat + 1) {
-        run_shuffle_split(info, repeat);
-    }
-     */
-
-    //run_brute_force(info);
-}
 fn run_expectation_sorting(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
     let mut cqi_matrix = CqiMatrix::new(
         info.0,
