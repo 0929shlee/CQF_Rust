@@ -32,50 +32,69 @@ impl ConnectionMatrix {
         self.matrix.write();
     }
 
-    pub fn brute_force(&mut self) {
-        self.algorithm_name = String::from("brute_force");
+    fn set_algorithm_name(&mut self, name: &str) {
+        self.algorithm_name = String::from(name);
+    }
+    fn set_connection_matrix_file_path(&mut self) {
         self.matrix.file_path = format!("connection_matrix_{}_{}.txt",
                                         self.algorithm_name,
                                         self.cqi_matrix.matrix.max_gnb_connection);
-        println!("Brute Force Algorithm start");
+    }
+    fn print_algorithm_start_msg(&self) {
+        println!("{} Algorithm start", self.algorithm_name);
+    }
+    fn print_algorithm_running_msg(&self, time_idx: usize) {
+        println!("{} Algorithm is running... ({}/{})", self.algorithm_name, time_idx + 1, self.matrix.n_time);
+    }
+    pub fn brute_force(&mut self) {
+        self.set_algorithm_name("brute_force");
+        self.set_connection_matrix_file_path();
+        self.print_algorithm_start_msg();
         for t in 0..self.matrix.n_time {
+            self.print_algorithm_running_msg(t);
             self._bf(t);
-            println!("Brute Force Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
         }
         println!();
     }
 
     pub fn cqi_sorting(&mut self) {
-        self.algorithm_name = String::from("cqi_sorting");
-        self.matrix.file_path = format!("connection_matrix_{}_{}.txt",
-                                        self.algorithm_name,
-                                        self.cqi_matrix.matrix.max_gnb_connection);
-        println!("CQI Sorting Algorithm start");
+        self.set_algorithm_name("cqi_sorting");
+        self.set_connection_matrix_file_path();
+        self.print_algorithm_start_msg();
         for t in 0..self.matrix.n_time {
+            self.print_algorithm_running_msg(t);
             let mut coord_cqi_vector: Vec<(usize, usize, u8, f64)> = Vec::new();
             self._cs_get_coord_cqi_table(t, &mut coord_cqi_vector);
             self._cs_connect_good_connection_candidates(t, &mut coord_cqi_vector);
             self._cs_swap_connection(t);
-            println!("CQI Sorting Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
         }
         println!();
     }
 
     pub fn expectation_sorting(&mut self) {
-        self.algorithm_name = String::from("expectation_sorting");
-        self.matrix.file_path = format!("connection_matrix_{}_{}.txt",
-                                        self.algorithm_name,
-                                        self.cqi_matrix.matrix.max_gnb_connection);
-        println!("Expectation Sorting Algorithm start");
+        self.set_algorithm_name("expectation_sorting");
+        self.set_connection_matrix_file_path();
+        self.print_algorithm_start_msg();
         for t in 0..self.matrix.n_time {
+            self.print_algorithm_running_msg(t);
             let mut coord_cqi_vector: Vec<(usize, usize, u8, f64)> = Vec::new();
             self._es_get_coord_cqi_table(t, &mut coord_cqi_vector);
             self._es_connect_good_connection_candidates(t, &mut coord_cqi_vector);
             self._es_swap_connection(t);
-            println!("Expectation Sorting Algorithm is running... {}%", (t + 1) * 100 / self.matrix.n_time);
         }
         println!();
 
+    }
+
+    pub fn naive_approach(&mut self) {
+        self.set_algorithm_name("naive_approach");
+        self.set_connection_matrix_file_path();
+        self.print_algorithm_start_msg();
+        for t in 0..self.matrix.n_time {
+            self.print_algorithm_running_msg(t);
+            self._na(t);
+        }
+        println!();
     }
 
     pub fn shuffle_split(&mut self, repeat: u64) {
@@ -85,6 +104,33 @@ impl ConnectionMatrix {
             self._ss(t, repeat);
         }
         println!();
+    }
+}
+
+impl ConnectionMatrix {
+    //Naive Approach
+    fn _na(&mut self, time_idx: usize) {
+        let mut gnb_connection_counts = vec![0 as usize; self.matrix.n_gnb];
+
+        for u in 0..self.matrix.n_ue {
+            let mut gnb_idx_cqi_arr: Vec<(usize, u8)> = vec![];
+            for g in 0..self.matrix.n_gnb {
+                gnb_idx_cqi_arr.push((g, self.cqi_matrix.matrix.matrix[g][u][time_idx]));
+            }
+            gnb_idx_cqi_arr.sort_by(
+                |t0, t1|
+                    t1.1.partial_cmp(&t0.1).unwrap()
+            );
+            for v in gnb_idx_cqi_arr {
+                let g = v.0;
+                if gnb_connection_counts[g] < self.matrix.max_gnb_connection {
+                    assert_eq!(self.matrix.matrix[g][u][time_idx], 0);
+                    self.matrix.matrix[g][u][time_idx] = 1;
+                    gnb_connection_counts[g] += 1;
+                    break;
+                }
+            }
+        }
     }
 }
 

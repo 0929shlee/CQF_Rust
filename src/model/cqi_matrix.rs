@@ -5,6 +5,7 @@ pub struct CqiMatrix {
     scaling_factor: f64,
     noise_density_factor: f64,
     noise_length_factor: usize,
+    pub penalty_factor: f64,
     pub matrix: Matrix,
 }
 
@@ -16,12 +17,14 @@ impl CqiMatrix {
         max_gnb_connection: usize,
         scaling_factor: f64,
         noise_density_factor: f64,
-        noise_length_factor: usize) -> Self {
+        noise_length_factor: usize,
+        penalty_factor: f64) -> Self {
 
         CqiMatrix {
             scaling_factor,
             noise_density_factor,
             noise_length_factor,
+            penalty_factor,
             matrix: Matrix::new(
                 n_gnb,
                 n_ue,

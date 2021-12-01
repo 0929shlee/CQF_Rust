@@ -8,10 +8,12 @@ use crate::model::comp_quality;
 
 mod model;
 
+type InfoType = (usize, usize, usize, usize, f64, f64, usize, f64, String);
+
 fn main() {
     let info = read_info();
     /*
-    match &info.7 as &str {
+    match &info.8 as &str {
         "BF" => run_brute_force(&info),
         "CS" => run_cqi_sorting(&info),
         "ES" => run_expectation_sorting(&info),
@@ -21,17 +23,28 @@ fn main() {
      */
 
     for i in 2..11 {
-        let info = (info.0, info.1, info.2, i as usize, info.4, info.5, info.6, String::from(&info.7));
+        /*
+        let info = (info.0, info.1, info.2, i as usize, info.4, info.5, info.6, info.7, String::from(&info.8));
         run_cqi_sorting(&info);
         run_expectation_sorting(&info);
-        run_brute_force(&info);
+        run_naive_approach(&info);
+
+         */
 
         /*
-        let info = (info.0, info.1, info.2, i * 10 as usize, info.4, info.5, info.6, String::from(&info.7));
+        let info = (info.0, info.1, info.2, i * 10 as usize, info.4, info.5, info.6, info.7, String::from(&info.8));
         run_cqi_sorting(&info);
         run_expectation_sorting(&info);
+        run_naive_approach(&info);
          */
     }
+    for i in 2..11 {
+        let info = (info.0, info.1, info.2, i as usize, info.4, info.5, info.6, info.7, String::from(&info.8));
+        run_brute_force(&info);
+    }
+
+    /*
+     */
 
     /*
     test(100);
@@ -39,16 +52,8 @@ fn main() {
 }
 
 
-fn run_expectation_sorting(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
-    let mut cqi_matrix = CqiMatrix::new(
-        info.0,
-        info.1,
-        info.2,
-        info.3,
-        info.4,
-        info.5,
-        info.6,
-    );
+fn run_expectation_sorting(info: &InfoType) {
+    let mut cqi_matrix = get_cqi_matrix(info);
     cqi_matrix.generate();
     let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
     let now = Instant::now();
@@ -59,16 +64,21 @@ fn run_expectation_sorting(info: &(usize, usize, usize, usize, f64, f64, usize, 
     write_results(format!("result_{}_{}.txt", connection_matrix.algorithm_name, info.3).as_str(),
                   cq, rt);
 }
-fn run_brute_force(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
-    let mut cqi_matrix = CqiMatrix::new(
-        info.0,
-        info.1,
-        info.2,
-        info.3,
-        info.4,
-        info.5,
-        info.6,
-    );
+fn run_naive_approach(info: &InfoType) {
+    let mut cqi_matrix = get_cqi_matrix(info);
+    cqi_matrix.generate();
+    let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
+    let now = Instant::now();
+    connection_matrix.naive_approach();
+    let rt = now.elapsed().as_millis();
+    let cq = comp_quality::calculate(&connection_matrix);
+    connection_matrix.write();
+    write_results(format!("result_{}_{}.txt", connection_matrix.algorithm_name, info.3).as_str(),
+                  cq, rt);
+
+}
+fn run_brute_force(info: &InfoType) {
+    let mut cqi_matrix = get_cqi_matrix(info);
     cqi_matrix.generate();
     let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
     let now = Instant::now();
@@ -79,17 +89,8 @@ fn run_brute_force(info: &(usize, usize, usize, usize, f64, f64, usize, String))
     write_results(format!("result_{}_{}.txt", connection_matrix.algorithm_name, info.3).as_str(),
                   cq, rt);
 }
-fn run_cqi_sorting(info: &(usize, usize, usize, usize, f64, f64, usize, String)) {
-    let mut cqi_matrix = CqiMatrix::new(
-        info.0,
-        info.1,
-        info.2,
-        info.3,
-        info.4,
-        info.5,
-        info.6,
-    );
-    println!("{}", info.3);
+fn run_cqi_sorting(info: &InfoType) {
+    let mut cqi_matrix = get_cqi_matrix(info);
     cqi_matrix.generate();
     let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
     let now = Instant::now();
@@ -100,16 +101,8 @@ fn run_cqi_sorting(info: &(usize, usize, usize, usize, f64, f64, usize, String))
     write_results(format!("result_{}_{}.txt", connection_matrix.algorithm_name, info.3).as_str(),
                   cq, rt);
 }
-fn run_shuffle_split(info: &(usize, usize, usize, usize, f64, f64, usize, String), repeat: u64) {
-    let mut cqi_matrix = CqiMatrix::new(
-        info.0,
-        info.1,
-        info.2,
-        info.3,
-        info.4,
-        info.5,
-        info.6,
-    );
+fn run_shuffle_split(info: &InfoType, repeat: u64) {
+    let mut cqi_matrix = get_cqi_matrix(info);
     cqi_matrix.generate();
     let mut connection_matrix = ConnectionMatrix::new(cqi_matrix);
     let now = Instant::now();
@@ -122,6 +115,18 @@ fn run_shuffle_split(info: &(usize, usize, usize, usize, f64, f64, usize, String
                           repeat,
                           info.3).as_str(),
                   cq, rt);
+}
+fn get_cqi_matrix(info: &InfoType) -> CqiMatrix {
+    CqiMatrix::new(
+        info.0,
+        info.1,
+        info.2,
+        info.3,
+        info.4,
+        info.5,
+        info.6,
+        info.7,
+    )
 }
 
 fn write_results(file_path: &str, comp_quality: f64, running_time: u128) {
@@ -138,7 +143,7 @@ fn write_results(file_path: &str, comp_quality: f64, running_time: u128) {
     }
 }
 
-fn read_info() -> (usize, usize, usize, usize, f64, f64, usize, String) {
+fn read_info() -> InfoType {
     let mut file = match File::open("info.txt") {
         Err(e) => panic!("File open error: {}", e),
         Ok(file) => file,
@@ -186,7 +191,12 @@ fn read_info() -> (usize, usize, usize, usize, f64, f64, usize, String) {
         .collect::<Vec<&str>>()[1]
         .parse::<usize>()
         .unwrap();
-    let algorithm_name = str_arr[7]
+    let penalty_factor = str_arr[7]
+        .split_whitespace()
+        .collect::<Vec<&str>>()[1]
+        .parse::<f64>()
+        .unwrap();
+    let algorithm_name = str_arr[8]
         .split_whitespace()
         .collect::<Vec<&str>>()[1];
 
@@ -197,6 +207,7 @@ fn read_info() -> (usize, usize, usize, usize, f64, f64, usize, String) {
      scaling_factor,
      noise_density_factor,
      noise_length_factor,
+     penalty_factor,
      String::from(algorithm_name)
     )
 }
@@ -214,6 +225,7 @@ fn test(n_test: usize) {
             info.4,
             info.5,
             info.6,
+            info.7,
         );
         cqi_matrix.generate();
 
@@ -221,7 +233,7 @@ fn test(n_test: usize) {
 
         let now = Instant::now();
 
-        match &info.7 as &str {
+        match &info.8 as &str {
             "BRUTE_FORCE" => connection_matrix.brute_force(),
             "CQI_SORTING" => connection_matrix.cqi_sorting(),
             "SHUFFLE_SPLIT" => connection_matrix.shuffle_split(100),

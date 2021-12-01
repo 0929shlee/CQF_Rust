@@ -29,9 +29,9 @@ pub fn get_sum_of_comp_quality(
     ue_idx: usize,
     time_idx: usize
 ) -> f64 {
-    //_max_reward(cqi_matrix) +
-        _reward(cqi_matrix, gnb_idx, ue_idx, time_idx)
-    //    - _penalty(cqi_matrix, gnb_idx, ue_idx, time_idx)
+    _max_reward(cqi_matrix) +
+        _reward(cqi_matrix, gnb_idx, ue_idx, time_idx) -
+        _penalty(cqi_matrix, gnb_idx, ue_idx, time_idx)
 }
 
 pub fn _max_reward(
@@ -57,8 +57,8 @@ fn _penalty(
 ) -> f64 {
 
     if time_idx > 0 {
-        _get_reward_of_cqi(cqi_matrix.matrix.max_cqi) -
-            _get_reward_of_cqi(cqi_matrix.matrix.matrix[gnb_idx][ue_idx][time_idx - 1])
+        cqi_matrix.penalty_factor * (_get_reward_of_cqi(cqi_matrix.matrix.max_cqi) -
+            _get_reward_of_cqi(cqi_matrix.matrix.matrix[gnb_idx][ue_idx][time_idx - 1]))
     }
     else {
         0.0
